@@ -172,7 +172,7 @@ Retain an independent sample-to-well map with the experimental record.
 For each numeric measurement, the application implements:
 
 ```math
-V_{\mathrm{water}} = \max\left(0, \left(\frac{C_{\mathrm{input}}}{C_{\mathrm{target}}} - 1\right)F + 10.1\right)
+V_{\mathrm{water}} = \max\left( \left(\frac{C_{\mathrm{input}}}{C_{\mathrm{target}}} - 1\right)F + 10.1\right)
 ```
 
 Positive results are rounded to one decimal place.
