@@ -1,28 +1,3 @@
----
-title: "Normatrons: DNA Normalization with the Opentrons OT-2"
-description: "A Python desktop and liquid-handling workflow for calculating DNA dilution volumes from Excel measurements and exchanging normalization instructions with an Opentrons OT-2."
-author: "Jan Woyzichovski"
-repository: "https://github.com/JanWoyzi/Opentrons_OT2_Normalization"
-license: "MIT"
-language: "en"
-programming_language: "Python"
-keywords:
-  - dna-normalization
-  - dna-dilution
-  - laboratory-automation
-  - liquid-handling
-  - opentrons
-  - ot-2
-  - molecular-biology
-  - research-software
-  - python
-  - excel
-  - json
-documentation_status: "draft"
-documentation_date: "2026-11-02"
-source_commit: "50500198611274985f2b338595e1c5e45b4eb164"
----
-
 # Normatrons: DNA Normalization with the Opentrons OT-2
 
 A Python-based workflow for calculating water additions from DNA concentration measurements and supplying those volumes to an Opentrons OT-2 liquid-handling robot.
