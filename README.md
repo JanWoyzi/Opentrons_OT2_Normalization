@@ -171,28 +171,26 @@ Retain an independent sample-to-well map with the experimental record.
 
 For each numeric measurement, the application implements:
 
-\[
-V_{\mathrm{water}}
-=
-\max\left(
-0,
-\left(\frac{C_{\mathrm{input}}}{C_{\mathrm{target}}}-1\right)F+10.1
-\right)
-\]
+```math
+V_{\mathrm{water}} = \max\left(0, \left(\frac{C_{\mathrm{input}}}{C_{\mathrm{target}}} - 1\right)F + 10.1\right)
+```
 
 Positive results are rounded to one decimal place.
 
 | Parameter | Meaning |
 |---|---|
-| \(C_{\mathrm{input}}\) | Numeric concentration measurement from Excel. |
-| \(C_{\mathrm{target}}\) | Destination concentration entered in the GUI. |
-| \(F\) | User-entered calculation factor. |
-| \(10.1\) | Fixed additive offset in the implemented expression. |
-| \(V_{\mathrm{water}}\) | Result interpreted as a water addition in µl. |
+| `C_input` | Numeric concentration measurement from Excel. |
+| `C_target` | Destination concentration entered in the GUI. |
+| `F` | User-entered calculation factor. |
+| `10.1` | Fixed additive offset in the implemented expression. |
+| `V_water` | Result interpreted as a water addition in µl. |
 
-This describes the implemented calculation, not a universal dilution equation. Establish the experimental meaning and units of the factor and offset before applying the workflow to another assay.
+This describes the implemented calculation, not a universal dilution equation.
+Establish the experimental meaning and units of the factor and offset before
+applying the workflow to another assay.
 
-Record all calculation parameters with each experiment. Adding water cannot increase the concentration of a sample below its target.
+Record all calculation parameters with each experiment. Adding water cannot
+increase the concentration of a sample below its target.
 
 ## Desktop workflow
 
