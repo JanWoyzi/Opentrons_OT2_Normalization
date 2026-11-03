@@ -4,7 +4,9 @@ A Python-based workflow for calculating water additions from DNA concentration m
 
 Normatrons combines an Excel-reading desktop application, JSON-based data exchange, and an OT-2 protocol. The intended workflow supports one or two 96-position sample layouts.
 
-## Project information
+<details>
+    
+<summary> Project information </summary>
 
 | Field | Description |
 |---|---|
@@ -20,6 +22,7 @@ Normatrons combines an Excel-reading desktop application, JSON-based data exchan
 | Software license | MIT |
 
 This documentation describes the inspected source code and intended workflow. It does not constitute laboratory validation or a verified compatibility statement.
+</details>
 
 ## Overview
 
