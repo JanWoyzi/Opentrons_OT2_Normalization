@@ -26,17 +26,23 @@ This documentation describes the inspected source code and intended workflow. It
 
 ## Overview
 
-Normatrons connects DNA concentration measurements to an automated water-addition workflow:
+Normatrons connects DNA concentration measurements to an automated water-addition workflow using a desktop computer and an Opentrons OT-2.
 
-1. Import concentration measurements from Excel.
-2. Enter a destination concentration and calculation factor.
-3. Calculate water additions for each sample.
-4. Inspect the results in a 96-position layout.
-5. Export one or two datasets to JSON.
-6. Make the results available to the OT-2 through a local HTTP service.
-7. Use the robot protocol to add water to samples in temperature-controlled labware.
+The desktop computer runs the normalization application and Flask server. The OT-2 runs the liquid-handling protocol through its built-in Jupyter Notebook access point.
 
-The software uses measurements that have already been generated. It does not analyze gel images or measure DNA concentration.
+The workflow is:
+
+1. Upload `Scripts/1x_Norm_Protocol.py` to the OT-2 through its built-in Jupyter environment.
+2. Prepare a notebook to load and execute the protocol, and configure the connection to the desktop computer.
+3. Import concentration measurements into the desktop application.
+4. Enter the destination concentration and calculation factor.
+5. Calculate and inspect the water additions.
+6. Save the required one or two datasets to `normalization_results.json`.
+7. Start the Flask server on the desktop computer and leave it running.
+8. Execute the prepared notebook on the OT-2 to start the protocol.
+9. The protocol retrieves the saved results from the desktop computer and performs the water additions.
+
+The software uses concentration measurements that have already been generated. It does not analyze gel images or measure DNA concentration.
 
 The intended liquid-handling operation adds water directly to existing DNA samples. It does not transfer DNA into a separate destination plate.
 
@@ -102,6 +108,8 @@ The configured workflow uses:
 
 ## Installation
 
+### Desktop computer
+
 Clone the repository and create an isolated Python environment:
 
 ```bash
@@ -128,6 +136,22 @@ python Normalization.py  # Start the desktop application.
 These commands provide a proposed setup based on the source imports. They are not a tested environment specification.
 
 Before first use, review or remove the supplied `config.json`, which contains computer-specific settings.
+
+### OT-2 and Jupyter preparation
+
+The robot protocol is prepared and executed using the OT-2’s built-in Jupyter Notebook access point.
+
+1. Connect to the OT-2 and open its Jupyter environment.
+2. Upload `Scripts/1x_Norm_Protocol.py` to the robot.
+3. Create or open the notebook used to prepare and execute the protocol.
+4. Configure the desktop computer’s address and the location of `normalization_results.json` as required by the protocol.
+5. Confirm that the notebook can access the uploaded protocol and that the required labware definitions are available.
+6. Prepare the protocol-loading and execution cells, keeping robot execution separate from preparation.
+7. Load the required labware, tips, water, and samples according to the deck layout.
+
+The repository contains the Python protocol file; a ready-made execution notebook is not included in the documented repository structure.
+
+Preparing or uploading the protocol does not start the normalization run. Execute the robot notebook only after the results have been saved, the Flask server is running, and the experimental setup has been checked.
 
 ## Input data
 
@@ -195,7 +219,11 @@ applying the workflow to another assay.
 Record all calculation parameters with each experiment. Adding water cannot
 increase the concentration of a sample below its target.
 
-## Desktop workflow
+## Desktop workflow and robot execution
+
+### 1. Calculate the first dataset
+
+On the desktop computer:
 
 1. Open `Normalization.py`.
 2. Select “Open Excel File”.
@@ -205,20 +233,55 @@ increase the concentration of a sample below its target.
 6. Leave “2nd gel” unchecked for the first dataset.
 7. Select “Calculate!”.
 8. Choose an output directory if prompted.
-9. Inspect the displayed water additions and exported JSON.
+9. Inspect the displayed water additions and exported `normalization_results.json`.
 
-### Processing a second dataset
+### 2. Add a second dataset, if required
 
-For a second dataset:
+Before starting the robot:
 
-1. Load its Excel workbook.
+1. Load the second Excel workbook.
 2. Select “2nd gel”.
 3. Calculate and save the results.
+4. Confirm that the output contains both intended datasets in the correct order.
 
-In the normal one-/two-dataset workflow:
+With “2nd gel” unchecked, saving replaces the output with the current dataset. With it checked, the normal one-/two-dataset workflow retains the first dataset and appends or replaces the second.
 
-- With “2nd gel” unchecked, saving replaces the output with the current dataset.
-- With “2nd gel” checked, saving retains the first dataset and appends or replaces the second.
+### 3. Start the Flask server on the desktop computer
+
+After saving and checking all datasets:
+
+1. Select “Flask Server” in the desktop application to launch the integrated server.
+2. Leave the server process/window running.
+3. Confirm that the configured results-file location matches the saved output.
+
+Start the server before executing the robot notebook: the protocol needs it to retrieve the results at the beginning of the run.
+
+Use only one server-launch method. The standalone `Flask_server.py` is an alternative, but its current approximately 10-second shutdown timer makes the timing of robot retrieval important.
+
+### 4. Start the protocol from the robot notebook
+
+With the results saved and the desktop Flask server running:
+
+1. Return to the prepared notebook in the OT-2’s Jupyter environment.
+2. Confirm the selected protocol, connection settings, dataset order, and physical deck arrangement.
+3. Execute the notebook cells that start the protocol.
+4. Monitor retrieval of the results and the subsequent robot execution.
+
+Do not change or overwrite the results file between the final check and retrieval by the robot.
+
+### Execution order at a glance
+
+```text
+Prepare the protocol and notebook on the OT-2
+                    ↓
+Calculate and save all datasets on the desktop
+                    ↓
+Start the desktop Flask server
+                    ↓
+Execute the prepared notebook on the OT-2
+                    ↓
+Retrieve results and perform water additions
+```
 
 ### Water requirement display
 
