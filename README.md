@@ -33,14 +33,15 @@ The desktop computer runs the normalization application and Flask server. The OT
 The workflow is:
 
 1. Upload `Scripts/1x_Norm_Protocol.py` to the OT-2 through its built-in Jupyter environment.
-2. Prepare a notebook to load and execute the protocol, and configure the connection to the desktop computer.
+2. Prepare a notebook to load and execute the protocol, and configure the connection to the desktop computer. Don't start it yet!
 3. Import concentration measurements into the desktop application.
 4. Enter the destination concentration and calculation factor.
 5. Calculate and inspect the water additions.
 6. Save the required one or two datasets to `normalization_results.json`.
-7. Start the Flask server on the desktop computer and leave it running.
-8. Execute the prepared notebook on the OT-2 to start the protocol.
-9. The protocol retrieves the saved results from the desktop computer and performs the water additions.
+7. Set the robot deck up with all neccessary equipment and liquids.
+8. Start the Flask server on the desktop computer and leave it running.
+9. Execute the prepared notebook on the OT-2 to start the protocol.
+10. The protocol retrieves the saved results from the desktop computer and performs the water additions.
 
 The software uses concentration measurements that have already been generated. It does not analyze gel images or measure DNA concentration.
 
@@ -291,9 +292,11 @@ Retrieve results and perform water additions
 
 ### Water requirement display
 
-The field labeled “Maximum Water Volume” displays the sum of additions for the current calculation.
+The field labeled “Maximum Water Volume” displays the sum of water additions for the current calculation.
 
-The displayed tube estimate uses 1,800 µl per source tube. Independently verify the complete water requirement for the planned robot run, including both datasets where applicable.
+The tube estimate assumes 1,800 µl of usable water per 2 ml source tube. This conservative threshold leaves a nominal 200 µl reserve in a tube filled to 2 ml, providing a safety margin to reduce the risk of running low or aspirating from an empty tube during the run.
+
+Independently verify the total water requirement and fill the source tubes accordingly before starting the robot, accounting for both datasets where applicable.
 
 ## Output data
 
