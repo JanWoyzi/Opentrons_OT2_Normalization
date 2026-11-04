@@ -1,8 +1,8 @@
 # Normatrons: DNA Normalization with the Opentrons OT-2
 
-A Python-based workflow for calculating water additions from DNA concentration measurements and supplying those volumes to an Opentrons OT-2 liquid-handling robot.
+Normatrons is a Python-based workflow for calculating water additions from DNA concentration measurements and automating their dispensing with an Opentrons OT-2 liquid-handling robot. It combines an Excel-reading desktop application, JSON-based data exchange, and a robot protocol supporting one or two 96-position sample layouts.
 
-Normatrons combines an Excel-reading desktop application, JSON-based data exchange, and an OT-2 protocol. The intended workflow supports one or two 96-position sample layouts.
+The solution separates the **robot protocol** from the sample-specific data. Once the protocol has been configured for the laboratory setup, new plates with different concentration values can be processed without repeatedly generating and uploading a new protocol or deleting the previous one. Instead, the desktop application calculates and saves the updated water additions, which the robot retrieves directly from the desktop computer at the start of each run. Protocol changes are only needed when the liquid-handling procedure or hardware configuration changes, rather than for every new dataset.
 
 <details>
     
