@@ -225,6 +225,8 @@ increase the concentration of a sample below its target.
 
 On the desktop computer:
 
+![alt text](images/Git_Normatron_001.PNG)
+
 1. Open `Normalization.py`.
 2. Select “Open Excel File”.
 3. Inspect the imported worksheet.
@@ -234,6 +236,8 @@ On the desktop computer:
 7. Select “Calculate!”.
 8. Choose an output directory if prompted.
 9. Inspect the displayed water additions and exported `normalization_results.json`.
+
+![alt text](images/Git_Normatron_002.PNG)
 
 ### 2. Add a second dataset, if required
 
@@ -257,6 +261,8 @@ After saving and checking all datasets:
 Start the server before executing the robot notebook: the protocol needs it to retrieve the results at the beginning of the run.
 
 Use only one server-launch method. The standalone `Flask_server.py` is an alternative, but its current approximately 10-second shutdown timer makes the timing of robot retrieval important.
+
+![alt text](images/Git_Normatron_003.PNG)
 
 ### 4. Start the protocol from the robot notebook
 
