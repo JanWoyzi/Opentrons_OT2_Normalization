@@ -3,12 +3,14 @@ from os.path import exists, join
 from json import load, dump
 from qtpy.QtWidgets import (QApplication, QMainWindow, QPushButton, QVBoxLayout, QHBoxLayout, QWidget, QFileDialog,
                             QTextEdit, QLabel, QLineEdit, QFormLayout, QCheckBox, QSizePolicy)
-from qtpy.QtGui import QDoubleValidator, QFont
+from qtpy.QtGui import QRegularExpressionValidator, QDoubleValidator, QFont
+from qtpy.QtCore import QRegularExpression  # Define the permitted text pattern for decimal input.
 from pandas import read_excel, DataFrame, notna
 from math import ceil
 from flask import Flask, jsonify # request
 from threading import Thread
 from os import spawnl, P_NOWAIT
+import traceback  # Provide detailed error reports showing the failing line.
 
 CONFIG_FILE = "config.json"  # File to store the last used file path and window size
 
@@ -102,7 +104,12 @@ class NormalizerApp(QMainWindow):
         self.dest_concentration = QLineEdit()
         self.dest_concentration.setFixedHeight(20)  # Height of one line
         self.dest_concentration.setFixedWidth(80)  # Width for 6 digits
-        self.dest_concentration.setValidator(QDoubleValidator())  # Allow only float values
+        dest_concentration_pattern = QRegularExpression(
+            r"[0-9]+(?:[.,][0-9]+)?")  # Allow digits with an optional decimal comma or decimal point.
+        dest_concentration_validator = QRegularExpressionValidator(dest_concentration_pattern,
+                                                       self.dest_concentration)  # Create a validator owned by the factor field.
+        self.dest_concentration.setValidator(
+            dest_concentration_validator)  # Use explicit decimal input instead of locale-dependent scientific input.
         h_layout1 = QHBoxLayout()  # Horizontal layout for this row
         h_layout1.addWidget(self.dest_concentration)
         additional_label1 = QLabel("ng/µl")  # Additional text
@@ -113,7 +120,12 @@ class NormalizerApp(QMainWindow):
         self.factor = QLineEdit()
         self.factor.setFixedHeight(20)
         self.factor.setFixedWidth(80)
-        self.factor.setValidator(QDoubleValidator())  # Allow only float values
+        factor_pattern = QRegularExpression(
+            r"[0-9]+(?:[.,][0-9]+)?")  # Allow digits with an optional decimal comma or decimal point.
+        factor_validator = QRegularExpressionValidator(factor_pattern,
+                                                       self.factor)  # Create a validator owned by the factor field.
+        self.factor.setValidator(
+            factor_validator)  # Use explicit decimal input instead of locale-dependent scientific input.
         h_layout2 = QHBoxLayout()  # Horizontal layout for this row
         h_layout2.addWidget(self.factor)
         additional_label2 = QLabel("x")
@@ -185,10 +197,20 @@ class NormalizerApp(QMainWindow):
     def calculate(self):
         if self.extracted_data is not None:
             try:
-                # Read the destination concentration and factor from the QLineEdits
-                dest_concentration_value = float(
-                    self.dest_concentration.text()) if self.dest_concentration.text() else 1.0
-                factor_value = float(self.factor.text()) if self.factor.text() else 1.0
+
+                dest_concentration_text = self.dest_concentration.text().strip()  # Read the dest_concentration exactly as entered, without surrounding whitespace.
+                if dest_concentration_text and not self.factor.hasAcceptableInput():  # Reject incomplete or unsupported nonempty input.
+                    raise ValueError(
+                        "Enter the concentration without thousands separators or an exponent.")  # Explain the permitted notation.
+                dest_concentration_value = float(dest_concentration_text.replace(",",
+                                                         ".")) if dest_concentration_text else 1.0  # Normalize the decimal separator and retain your existing empty-field default.
+
+                factor_text = self.factor.text().strip()
+                if factor_text and not self.factor.hasAcceptableInput():
+                    raise ValueError(
+                        "Enter the factor as 15.5 or 15,5, without thousands separators or an exponent.")
+                factor_value = float(factor_text.replace(",",
+                                                         ".")) if factor_text else 1.0
 
                 results = []
                 for column_name, column in self.extracted_data.iloc[:, 1:].items():
@@ -239,7 +261,9 @@ class NormalizerApp(QMainWindow):
                 self.result_area.setText(formatted_table)
 
             except Exception as e:
-                self.debug_line.setText(f"Error calculating: {e}")
+                traceback.print_exc()  # Print the complete traceback, including the exact failing line.
+                self.debug_line.setText(
+                    f"{type(e).__name__}: {e}")  # Display the exception type and message in the GUI.
         else:
             self.debug_line.setText("No data available. Please load an Excel file first.")
 
