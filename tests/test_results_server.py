@@ -177,28 +177,29 @@ def test_init_creates_random_token(tmp_path, capsys):  # --init writes a fresh s
 
 # ------------------------------------- standalone launch path (live HTTP) ---
 
-def test_standalone_launcher_uses_shared_server():  # Flask_server.py must not have its own endpoint.
-    import Flask_server  # Import the standalone launcher.
-    assert Flask_server.main is results_server.main  # It is just the shared main().
-    assert "read_file" not in (SCRIPTS / "Flask_server.py").read_text(encoding="utf-8").split('"""', 2)[2]  # No old route in the code.
+def test_obsolete_flask_server_script_is_gone():  # The old standalone script must not come back.
+    assert not (SCRIPTS / "Flask_server.py").exists()  # Only results_server.py may start a server.
 
 
 def test_standalone_main_refuses_without_settings(tmp_path):  # Missing settings -> exit code 1, nothing served.
     assert results_server.main(["--config", str(tmp_path / "missing.json")]) == 1  # Clean failure.
 
 
-def test_standalone_server_live_http(setup):  # Real cheroot server, real requests, like the robot.
-    settings = results_server.load_settings(setup["path"])  # Load settings.
-    server = results_server.build_server(settings)  # Production server object.
-    run_live(server)  # Start it.
-    try:  # Always stop the server afterwards.
-        base = f"http://127.0.0.1:{settings['port']}"  # Base URL.
-        assert requests.get(base + "/results", timeout=5).status_code == 401  # No token -> 401.
-        assert requests.get(base + "/read_file/" + str(setup["secret"]), headers=AUTH, timeout=5).status_code == 404  # Old URL dead.
-        config = {"url": base + "/results", "token": TOKEN, "allow_plain_http": True}  # Robot client settings.
-        assert json.loads(results_client.fetch_results(config)) == RESULTS  # Robot client gets the data.
-    finally:  # Clean-up.
-        server.stop()  # Close the socket.
+def test_standalone_server_live_http(setup):  # "python results_server.py" for real: main() + real HTTP requests.
+    settings = results_server.load_settings(setup["path"])  # Load settings (only to know the port).
+    thread = threading.Thread(target=results_server.main, args=(["--config", str(setup["path"])],), daemon=True)  # Same as the command line.
+    thread.start()  # Start main() in the background.
+    base = f"http://127.0.0.1:{settings['port']}"  # Base URL.
+    for _ in range(50):  # Wait up to 5 s until the server accepts connections.
+        try:  # The first attempts may happen before the socket is open.
+            requests.get(base + "/results", timeout=1)  # Any answer means the server is up.
+            break  # Server is ready.
+        except requests.exceptions.ConnectionError:  # Not ready yet.
+            threading.Event().wait(0.1)  # Wait 0.1 s and try again.
+    assert requests.get(base + "/results", timeout=5).status_code == 401  # No token -> 401.
+    assert requests.get(base + "/read_file/" + str(setup["secret"]), headers=AUTH, timeout=5).status_code == 404  # Old URL dead.
+    config = {"url": base + "/results", "token": TOKEN, "allow_plain_http": True}  # Robot client settings.
+    assert json.loads(results_client.fetch_results(config)) == RESULTS  # Robot client gets the data.
 
 
 def test_standalone_server_live_https(setup):  # HTTPS with certificate verification.
@@ -239,7 +240,7 @@ def test_gui_window_serves_restricted_endpoint(monkeypatch, setup):  # Same beha
     gui = import_gui(monkeypatch, setup)  # Import the GUI.
     from qtpy.QtWidgets import QApplication  # Qt application class.
     app = QApplication.instance() or QApplication([])  # One QApplication per process.
-    window = gui.FlaskWindow()  # Exactly what "python Normalization.py --flask-server" creates.
+    window = gui.ResultsServerWindow()  # Exactly what "python Normalization.py --results-server" creates.
     try:  # Always stop the server afterwards.
         assert window.server is not None  # The server started.
         base = f"http://127.0.0.1:{json.loads(setup['path'].read_text())['port']}"  # Base URL.
@@ -259,7 +260,7 @@ def test_gui_window_refuses_unsafe_settings(monkeypatch, setup):  # Unsafe setti
     gui = import_gui(monkeypatch, setup)  # Import the GUI.
     from qtpy.QtWidgets import QApplication  # Qt application class.
     app = QApplication.instance() or QApplication([])  # Keep a reference, otherwise Python deletes the Qt app at once.
-    assert gui.FlaskWindow().server is None and app is not None  # No server object was started.
+    assert gui.ResultsServerWindow().server is None and app is not None  # No server object was started.
 
 
 # ------------------------------------------------------- robot client ---

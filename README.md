@@ -60,7 +60,6 @@ Opentrons_OT2_Normalization/
 │   └── test_results_server.py
 └── Scripts/
     ├── Normalization.py
-    ├── Flask_server.py
     ├── results_server.py
     ├── results_client.py
     ├── 1x_Norm_Protocol.py
@@ -70,8 +69,7 @@ Opentrons_OT2_Normalization/
 | File | Purpose |
 |---|---|
 | `Normalization.py` | Desktop GUI for Excel import, volume calculation, results display, JSON export, saved preferences, and integrated server launch. |
-| `results_server.py` | The single, restricted results server: one authenticated `/results` endpoint serving one administrator-configured file. |
-| `Flask_server.py` | Standalone launcher; starts `results_server.py` (same behavior as the GUI button). |
+| `results_server.py` | The single, restricted results server: one authenticated `/results` endpoint serving one administrator-configured file. Started from the GUI or with `python results_server.py`. |
 | `results_client.py` | Robot-side client: authenticated download with timeout and controlled errors. Upload it to the OT-2 next to the protocol. |
 | `1x_Norm_Protocol.py` | OT-2 protocol intended to retrieve calculated volumes and dispense water. |
 | `config.json` | Saved GUI settings, including paths, calculation parameters, and window dimensions. |
@@ -265,13 +263,13 @@ With “2nd gel” unchecked, saving replaces the output with the current datase
 
 After saving and checking all datasets:
 
-1. Select “Flask Server” in the desktop application to launch the results server.
+1. Select “Start Results Server” in the desktop application to launch the results server.
 2. Check the server window: it shows the URL the robot must use, or why the server did not start. It warns if the configured results file differs from the GUI's save location.
 3. Leave the server window running.
 
 Start the server before executing the robot notebook: the protocol needs it to retrieve the results at the beginning of the run.
 
-Use only one server-launch method. `python Flask_server.py` starts the identical server without the GUI; stop it with Ctrl+C. (The old 10-second auto-shutdown timer was removed.)
+Without the GUI, `python results_server.py` (in the `Scripts` folder) starts the identical server; stop it with Ctrl+C. Run only one server at a time, because both use the same port. (The old standalone `Flask_server.py` with its 10-second auto-shutdown timer was removed.)
 
 ![alt text](images/Git_Normatron_003.PNG)
 
@@ -350,7 +348,7 @@ The desktop computer serves exactly one file — the administrator-configured `n
 | Results file not valid JSON, unreadable, or larger than 1 MB | `500 {"error": "Results unavailable"}` |
 | Any other URL, including the old `/read_file/...` | `404 {"error": "Not found"}` |
 
-Error messages never contain file paths, exception text, or secrets. Every response carries `Cache-Control: no-store`. Both launch paths (GUI button and `Flask_server.py`) use the same code in `results_server.py`, served by the production server `cheroot` with Flask debugging disabled.
+Error messages never contain file paths, exception text, or secrets. Every response carries `Cache-Control: no-store`. The GUI button and the command `python results_server.py` run the same code in `results_server.py`, served by the production server `cheroot` with Flask debugging disabled.
 
 ### One-time setup on the desktop computer
 

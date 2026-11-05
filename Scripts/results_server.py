@@ -1,8 +1,8 @@
 """Restricted, authenticated server that hands ONE results file to the OT-2.
 
-This module is the only server implementation in the project. Both the
-standalone launcher (Flask_server.py) and the GUI button in Normalization.py
-use it, so there is no second, unrestricted endpoint left anywhere.
+This module is the only server implementation in the project. It is started
+either directly (python results_server.py) or by the "Start Results Server"
+button in Normalization.py, so there is no second, unrestricted endpoint left.
 
 Security model (see README, section "Computer-to-robot communication"):
 - one fixed endpoint, GET /results, no client-chosen file names or paths;

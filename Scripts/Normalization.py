@@ -16,10 +16,10 @@ import traceback  # Provide detailed error reports showing the failing line.
 CONFIG_FILE = "config.json"  # File to store the last used file path and window size
 
 # The old, unrestricted Flask app (/read_file/<any path>) was removed here.
-# The GUI now launches the same authenticated server as Flask_server.py.
+# The GUI now launches the shared authenticated server from results_server.py.
 
-def create_gui_server(settings_path=None):  # Used by the "Flask Server" button window and by the tests.
-    """Build the restricted results server used by the "Flask Server" button."""  # Docstring.
+def create_gui_server(settings_path=None):  # Used by the "Start Results Server" button window and by the tests.
+    """Build the restricted results server used by the "Start Results Server" button."""  # Docstring.
     settings = load_settings(settings_path)  # Read and validate the administrator's settings (raises SettingsError if unsafe).
     return settings, build_server(settings)  # Return the settings (for display) and the production server object.
 
@@ -32,7 +32,7 @@ def gui_results_path():  # Helper for the "different file" warning.
         save_dir = load(f).get("save_directory", "")  # Folder where the GUI saves normalization_results.json.
     return join(save_dir, "normalization_results.json") if save_dir else None  # Full path, or None if unset.
 
-class FlaskWindow(QMainWindow):
+class ResultsServerWindow(QMainWindow):
     """A minimal window that runs the restricted results server and shows its status."""
     def __init__(self):  # Runs when the window is created.
         super().__init__()  # Let QMainWindow set itself up first.
@@ -76,9 +76,9 @@ class FlaskWindow(QMainWindow):
         event.accept()  # Let Qt close the window.
 
 # Function to start the restricted results server in a separate process
-def run_flask_server():
-    """Start this script again with --flask-server; that process shows FlaskWindow."""
-    spawnl(P_NOWAIT, executable, executable, __file__, "--flask-server")
+def run_results_server():
+    """Start this script again with --results-server; that process shows ResultsServerWindow."""
+    spawnl(P_NOWAIT, executable, executable, __file__, "--results-server")
 
 
 class NormalizerApp(QMainWindow):
@@ -182,12 +182,12 @@ class NormalizerApp(QMainWindow):
         self.calculate_button.clicked.connect(self.calculate)
         checkbox_and_button_layout.addWidget(self.calculate_button)
 
-        # Create "Flask Server" button
-        self.Flask_Server_button = QPushButton("Flask Server")
-        self.Flask_Server_button.setFixedHeight(80)
-        self.Flask_Server_button.setFixedWidth(100)
-        self.Flask_Server_button.clicked.connect(self.start_flask_server)
-        checkbox_and_button_layout.addWidget(self.Flask_Server_button)
+        # Create "Start Results Server" button
+        self.results_server_button = QPushButton("Start Results\nServer")  # Two lines so the text fits the 100-px-wide button.
+        self.results_server_button.setFixedHeight(80)
+        self.results_server_button.setFixedWidth(120)  # A little wider than "Calculate!" so "Start Results" fits on Windows too.
+        self.results_server_button.clicked.connect(self.start_results_server)
+        checkbox_and_button_layout.addWidget(self.results_server_button)
 
         # Add the form layout and the button layout into the HBox
         form_and_button_layout.addLayout(form_layout)
@@ -361,19 +361,19 @@ class NormalizerApp(QMainWindow):
         except Exception as e:
             self.debug_line.setText(f"Error saving results: {e}")
 
-    def start_flask_server(self):
-        """Start Flask server in a separate process with a minimal window."""
-        run_flask_server()
+    def start_results_server(self):
+        """Start the results server in a separate process with a minimal status window."""
+        run_results_server()
 
 # Main application loop
-# Detect if running as a Flask server process
+# Detect if running as the results server process
 if __name__ == "__main__":
-    if "--flask-server" in argv:
+    if "--results-server" in argv:
         app = QApplication(argv)
         font = QFont("Arial", 12)  # Set to the desired font and size
         app.setFont(font)
-        flask_window = FlaskWindow()  # Builds and starts the restricted server (or shows why it could not start).
-        flask_window.show()
+        server_window = ResultsServerWindow()  # Builds and starts the restricted server (or shows why it could not start).
+        server_window.show()
 
         exit(app.exec_())
     else:
