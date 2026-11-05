@@ -1,8 +1,8 @@
 import json
 from opentrons import protocol_api, execute
-import requests
 import sys
 sys.path.append("/var/lib/jupyter/notebooks/")
+from results_client import ResultsFetchError, fetch_results, load_client_config  # Authenticated download of the results (issue #5).
 
 
 apiLevel = '2.13'
@@ -27,33 +27,22 @@ tips20_list = [] #
 # Must home before running
 protocol.home()
 
-# Function to fetch JSON file from laptop
-def get_file_content(protocol, filename):
-    if requests is None:
-        protocol.comment("Requests module not available during simulation")
-        return None
-
-    laptop_ip = "169.254.52.0"
-    try:
-        response = requests.get(f"http://{laptop_ip}:5000/read_file/{filename}")
-        if response.status_code == 200:
-            return response.json()["content"]
-        else:
-            protocol.comment(f"Error: {response.json().get('error', 'Unknown error')}")
-            return None
-    except Exception as e:
-        protocol.comment(f"Error fetching file: {str(e)}")
-        return None
+# Function to fetch the results from the desktop PC.
+# The URL, token and certificate come from the robot's client settings file
+# (normatrons_client.json), never from this script, so no secret is in Git.
+def get_file_content(protocol):
+    try:  # Every failure below is turned into ResultsFetchError by results_client.
+        config = load_client_config()  # Read and check the robot's client settings (URL, token, certificate).
+        return fetch_results(config)  # Download the results text from the fixed, authenticated /results endpoint.
+    except ResultsFetchError as error:  # Settings missing, server unreachable, wrong token, bad response, ...
+        protocol.comment(f"Results retrieval failed: {error} Aborting before pipetting.")  # Explain on the robot log.
+        raise  # Re-raise the error so the protocol stops here; nothing has been pipetted yet.
 
 
 def run(protocol: protocol_api.ProtocolContext):
     # Fetch the JSON file at the start of the protocol
-    h2o_vol_list = get_file_content(protocol,
-                                        "C:/Users/Opentrons-PC/Documents/Opentrons documents/Normalisierung/Results/normalization_results.json")
-
-    if h2o_vol_list is None:
-        protocol.comment("Failed to fetch JSON file. Aborting protocol.")
-        return
+    # Raises ResultsFetchError (and so stops the run) before any labware or pipette is used.
+    h2o_vol_list = get_file_content(protocol)
     if len(h2o_vol_list) == 2:
         flag_2x = True
         h2o_vol_1st_list[0]

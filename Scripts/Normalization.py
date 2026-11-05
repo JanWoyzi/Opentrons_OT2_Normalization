@@ -7,50 +7,77 @@ from qtpy.QtGui import QRegularExpressionValidator, QDoubleValidator, QFont
 from qtpy.QtCore import QRegularExpression  # Define the permitted text pattern for decimal input.
 from pandas import read_excel, DataFrame, notna
 from math import ceil
-from flask import Flask, jsonify # request
 from threading import Thread
 from os import spawnl, P_NOWAIT
+from os.path import abspath, normcase  # Compare the GUI save path with the server's configured results file.
+from results_server import SettingsError, build_server, load_settings, server_url  # The ONE shared, restricted server (issue #5).
 import traceback  # Provide detailed error reports showing the failing line.
 
 CONFIG_FILE = "config.json"  # File to store the last used file path and window size
 
-# Flask Application
-flask_app = Flask(__name__)
+# The old, unrestricted Flask app (/read_file/<any path>) was removed here.
+# The GUI now launches the same authenticated server as Flask_server.py.
 
-@flask_app.route('/read_file/<path:filename>')
-def read_file(filename):
-    try:
-        with open(filename, 'r') as file:
-            content = file.read()
-        return jsonify({"content": content})
-    except FileNotFoundError:
-        return jsonify({"error": "File not found"}), 404
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+def create_gui_server(settings_path=None):  # Used by the "Flask Server" button window and by the tests.
+    """Build the restricted results server used by the "Flask Server" button."""  # Docstring.
+    settings = load_settings(settings_path)  # Read and validate the administrator's settings (raises SettingsError if unsafe).
+    return settings, build_server(settings)  # Return the settings (for display) and the production server object.
 
-def start_flask():
-    """Start Flask server."""
-    flask_app.run(host='0.0.0.0', port=5000, use_reloader=False)
+
+def gui_results_path():  # Helper for the "different file" warning.
+    """Return the results file the GUI writes to, based on config.json (or None)."""  # Docstring.
+    if not exists(CONFIG_FILE):  # No GUI settings saved yet.
+        return None  # Nothing to compare.
+    with open(CONFIG_FILE, "r") as f:  # Open the GUI settings file.
+        save_dir = load(f).get("save_directory", "")  # Folder where the GUI saves normalization_results.json.
+    return join(save_dir, "normalization_results.json") if save_dir else None  # Full path, or None if unset.
 
 class FlaskWindow(QMainWindow):
-    """A minimal window to indicate Flask is running."""
-    def __init__(self):
-        super().__init__()
-        self.setWindowTitle("Flask Server")
-        self.setGeometry(200, 200, 300, 150)
+    """A minimal window that runs the restricted results server and shows its status."""
+    def __init__(self):  # Runs when the window is created.
+        super().__init__()  # Let QMainWindow set itself up first.
+        self.setWindowTitle("Normatrons Results Server")  # Text in the window's title bar.
+        self.setGeometry(200, 200, 520, 180)  # Position (x, y) and size (width, height) in pixels.
+        self.server = None  # Will hold the cheroot server once it has started.
 
-        layout = QVBoxLayout()
-        label = QLabel("Flask Server is running...", self)
-        label.setStyleSheet("font-size: 14px; font-weight: bold;")
-        layout.addWidget(label)
+        layout = QVBoxLayout()  # Stack widgets vertically.
+        label = QLabel(self)  # Text label that shows the server status.
+        label.setWordWrap(True)  # Long paths should wrap instead of being cut off.
+        label.setStyleSheet("font-size: 14px; font-weight: bold;")  # Bold, readable text.
+        layout.addWidget(label)  # Put the label into the layout.
 
-        central_widget = QWidget(self)
-        central_widget.setLayout(layout)
-        self.setCentralWidget(central_widget)
+        try:  # Starting can fail if the settings are missing or unsafe.
+            settings, self.server = create_gui_server()  # Build the shared restricted server.
+        except (SettingsError, ValueError, OSError) as error:  # Problems in the administrator's settings file.
+            label.setText(f"Server NOT started:\n{error}")  # Show the reason locally; nothing is exposed on the network.
+        else:  # Only runs when no exception happened.
+            message = f"Server is running at:\n{server_url(settings)}"  # Tell the user which URL the robot must use.
+            if not settings.get("certfile"):  # Plain HTTP was explicitly allowed in the settings.
+                message += "\nWARNING: plain HTTP - token and results are not encrypted."  # Remind the user.
+            gui_path = gui_results_path()  # Where the GUI saves its results.
+            if gui_path and normcase(abspath(gui_path)) != normcase(settings["results_file"]):  # Different files?
+                message += "\nWARNING: the server serves a different file than the GUI saves:\n" + settings["results_file"]  # Warn.
+            try:  # Opening the port can fail, e.g. when another server already uses it.
+                self.server.prepare()  # Bind to the configured address and port now, in the main thread.
+            except OSError:  # Port busy or address not present on this PC.
+                self.server = None  # Nothing to stop later.
+                message = "Server NOT started: the configured address/port is not available."  # Generic local message.
+            else:  # Port opened successfully.
+                Thread(target=self.server.serve, daemon=True).start()  # Handle requests in the background so the window stays responsive.
+            label.setText(message)  # Display the status text.
 
-# Function to start Flask in a separate process
+        central_widget = QWidget(self)  # Container widget for the layout.
+        central_widget.setLayout(layout)  # Attach the layout to the container.
+        self.setCentralWidget(central_widget)  # Show the container inside the window.
+
+    def closeEvent(self, event):  # Qt calls this when the window is closed.
+        if self.server is not None:  # The server was started.
+            self.server.stop()  # Close the network socket cleanly when the window is closed.
+        event.accept()  # Let Qt close the window.
+
+# Function to start the restricted results server in a separate process
 def run_flask_server():
-    """Run Flask server in a new process using sys.executable."""
+    """Start this script again with --flask-server; that process shows FlaskWindow."""
     spawnl(P_NOWAIT, executable, executable, __file__, "--flask-server")
 
 
@@ -345,12 +372,8 @@ if __name__ == "__main__":
         app = QApplication(argv)
         font = QFont("Arial", 12)  # Set to the desired font and size
         app.setFont(font)
-        flask_window = FlaskWindow()
+        flask_window = FlaskWindow()  # Builds and starts the restricted server (or shows why it could not start).
         flask_window.show()
-
-        # Start Flask in a new thread inside this window
-        flask_thread = Thread(target=start_flask, daemon=True)
-        flask_thread.start()
 
         exit(app.exec_())
     else:

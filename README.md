@@ -29,7 +29,7 @@ This documentation describes the inspected source code and intended workflow. It
 
 Normatrons connects DNA concentration measurements to an automated water-addition workflow using a desktop computer and an Opentrons OT-2.
 
-The desktop computer runs the normalization application and Flask server. The OT-2 runs the liquid-handling protocol through its built-in Jupyter Notebook access point.
+The desktop computer runs the normalization application and the restricted results server. The OT-2 runs the liquid-handling protocol through its built-in Jupyter Notebook access point.
 
 The workflow is:
 
@@ -40,7 +40,7 @@ The workflow is:
 5. Calculate and inspect the water additions.
 6. Save the required one or two datasets to `normalization_results.json`.
 7. Set the robot deck up with all neccessary equipment and liquids.
-8. Start the Flask server on the desktop computer and leave it running.
+8. Start the results server on the desktop computer and leave it running.
 9. Execute the prepared notebook on the OT-2 to start the protocol.
 10. The protocol retrieves the saved results from the desktop computer and performs the water additions.
 
@@ -54,9 +54,15 @@ The intended liquid-handling operation adds water directly to existing DNA sampl
 Opentrons_OT2_Normalization/
 ├── LICENSE
 ├── README.md
+├── requirements-desktop.txt
+├── requirements-dev.txt
+├── tests/
+│   └── test_results_server.py
 └── Scripts/
     ├── Normalization.py
     ├── Flask_server.py
+    ├── results_server.py
+    ├── results_client.py
     ├── 1x_Norm_Protocol.py
     └── config.json
 ```
@@ -64,7 +70,9 @@ Opentrons_OT2_Normalization/
 | File | Purpose |
 |---|---|
 | `Normalization.py` | Desktop GUI for Excel import, volume calculation, results display, JSON export, saved preferences, and integrated server launch. |
-| `Flask_server.py` | Standalone Flask application for serving file contents to the robot. |
+| `results_server.py` | The single, restricted results server: one authenticated `/results` endpoint serving one administrator-configured file. |
+| `Flask_server.py` | Standalone launcher; starts `results_server.py` (same behavior as the GUI button). |
+| `results_client.py` | Robot-side client: authenticated download with timeout and controlled errors. Upload it to the OT-2 next to the protocol. |
 | `1x_Norm_Protocol.py` | OT-2 protocol intended to retrieve calculated volumes and dispense water. |
 | `config.json` | Saved GUI settings, including paths, calculation parameters, and window dimensions. |
 | `LICENSE` | Software licensing terms. |
@@ -78,7 +86,8 @@ The application uses:
 - Python.
 - `qtpy` and a compatible Qt binding, such as `PyQt5`.
 - `pandas`.
-- `Flask`.
+- `Flask` and `cheroot` (production WSGI server, also on Windows).
+- Optional: `cryptography`, to create a self-signed HTTPS certificate with `--make-cert`.
 - `tabulate`.
 - An appropriate Excel reader: `openpyxl` for typical `.xlsx` files or `xlrd` for legacy `.xls` files.
 
@@ -125,7 +134,7 @@ Activate the environment using the command appropriate for your operating system
 Install the desktop dependencies:
 
 ```bash
-python -m pip install qtpy PyQt5 pandas Flask openpyxl xlrd tabulate  # Install the desktop dependencies and Excel readers.
+python -m pip install -r requirements-desktop.txt  # Install the desktop dependencies, Excel readers and the results server.
 ```
 
 Launch the application:
@@ -144,16 +153,16 @@ Before first use, review or remove the supplied `config.json`, which contains co
 The robot protocol is prepared and executed using the OT-2’s built-in Jupyter Notebook access point.
 
 1. Connect to the OT-2 and open its Jupyter environment.
-2. Upload `Scripts/1x_Norm_Protocol.py` to the robot.
+2. Upload `Scripts/1x_Norm_Protocol.py` and `Scripts/results_client.py` to `/var/lib/jupyter/notebooks/` on the robot.
 3. Create or open the notebook used to prepare and execute the protocol.
-4. Configure the desktop computer’s address and the location of `normalization_results.json` as required by the protocol.
+4. Create the robot's client settings file `normatrons_client.json` (see [Computer-to-robot communication](#computer-to-robot-communication)). The results-file location is configured only on the desktop computer.
 5. Confirm that the notebook can access the uploaded protocol and that the required labware definitions are available.
 6. Prepare the protocol-loading and execution cells, keeping robot execution separate from preparation.
 7. Load the required labware, tips, water, and samples according to the deck layout.
 
 The repository contains the Python protocol file; a ready-made execution notebook is not included in the documented repository structure.
 
-Preparing or uploading the protocol does not start the normalization run. Execute the robot notebook only after the results have been saved, the Flask server is running, and the experimental setup has been checked.
+Preparing or uploading the protocol does not start the normalization run. Execute the robot notebook only after the results have been saved, the results server is running, and the experimental setup has been checked.
 
 ## Input data
 
@@ -252,23 +261,23 @@ Before starting the robot:
 
 With “2nd gel” unchecked, saving replaces the output with the current dataset. With it checked, the normal one-/two-dataset workflow retains the first dataset and appends or replaces the second.
 
-### 3. Start the Flask server on the desktop computer
+### 3. Start the results server on the desktop computer
 
 After saving and checking all datasets:
 
-1. Select “Flask Server” in the desktop application to launch the integrated server.
-2. Leave the server process/window running.
-3. Confirm that the configured results-file location matches the saved output.
+1. Select “Flask Server” in the desktop application to launch the results server.
+2. Check the server window: it shows the URL the robot must use, or why the server did not start. It warns if the configured results file differs from the GUI's save location.
+3. Leave the server window running.
 
 Start the server before executing the robot notebook: the protocol needs it to retrieve the results at the beginning of the run.
 
-Use only one server-launch method. The standalone `Flask_server.py` is an alternative, but its current approximately 10-second shutdown timer makes the timing of robot retrieval important.
+Use only one server-launch method. `python Flask_server.py` starts the identical server without the GUI; stop it with Ctrl+C. (The old 10-second auto-shutdown timer was removed.)
 
 ![alt text](images/Git_Normatron_003.PNG)
 
 ### 4. Start the protocol from the robot notebook
 
-With the results saved and the desktop Flask server running:
+With the results saved and the desktop results server running:
 
 1. Return to the prepared notebook in the OT-2’s Jupyter environment.
 2. Confirm the selected protocol, connection settings, dataset order, and physical deck arrangement.
@@ -284,7 +293,7 @@ Prepare the protocol and notebook on the OT-2
                     ↓
 Calculate and save all datasets on the desktop
                     ↓
-Start the desktop Flask server
+Start the desktop results server
                     ↓
 Execute the prepared notebook on the OT-2
                     ↓
@@ -331,20 +340,66 @@ The current output does not embed sample identifiers, units, workbook provenance
 
 ## Computer-to-robot communication
 
-The Flask service makes results accessible through HTTP on port `5000`.
+The desktop computer serves exactly one file — the administrator-configured `normalization_results.json` — on one fixed endpoint, `GET /results`. The robot cannot choose a file name or path. Every request must carry a secret token in the header `Authorization: Bearer <token>`.
 
-The current response contains a `content` field holding the requested file as text. The client must decode the response and then interpret the file contents.
+| Request | Response |
+|---|---|
+| No or wrong token | `401 {"error": "Unauthorized"}` — the results file is not touched. |
+| Correct token | `200 {"content": "<text of the results file>"}` |
+| Results file missing | `503 {"error": "Results unavailable"}` |
+| Results file not valid JSON, unreadable, or larger than 1 MB | `500 {"error": "Results unavailable"}` |
+| Any other URL, including the old `/read_file/...` | `404 {"error": "Not found"}` |
 
-Configure the computer address and results-file location for the actual deployment. The GUI output directory and robot-side file location must refer to the same results.
+Error messages never contain file paths, exception text, or secrets. Every response carries `Cache-Control: no-store`. Both launch paths (GUI button and `Flask_server.py`) use the same code in `results_server.py`, served by the production server `cheroot` with Flask debugging disabled.
 
-The repository provides two server-launch options:
+### One-time setup on the desktop computer
 
-- The integrated server launched from `Normalization.py`.
-- The standalone `Flask_server.py`.
+Run these commands in the `Scripts` folder. The settings file and certificate are stored in your user folder, outside the repository (`~/.normatrons/`; on Windows `C:/Users/<you>/.normatrons/`). Set the environment variable `NORMATRONS_SERVER_CONFIG` to use a different location.
 
-Do not start both on the same port. The standalone implementation includes an approximately 10-second automatic shutdown timer.
+```bash
+python results_server.py --init --results-file "C:/path/to/Results/normalization_results.json" --host 169.254.52.10  # Create settings with a new random token; prints the token once.
+python results_server.py --make-cert --host 169.254.52.10  # Optional but recommended: create a self-signed HTTPS certificate for this IP.
+```
 
-Use an appropriately restricted laboratory connection. Do not expose the local file-serving service to the public internet.
+- `--host` is the IP address of the desktop computer's network card that is connected to the robot (Windows: `ipconfig`). The server refuses to listen on `0.0.0.0`.
+- `--results-file` must be the file the GUI saves (output directory + `normalization_results.json`).
+- To create a new token later, run `--init` again and update the robot. Never commit the settings file, token, or `normatrons_key.pem`.
+
+### HTTPS and plain HTTP
+
+With a certificate configured, traffic is encrypted and the robot verifies the desktop computer's identity. Without a certificate the server only starts if you set `"allow_plain_http": true` in the settings file. **Over plain HTTP the bearer token and the results are sent unencrypted** and can be read by anyone on the same network. Use plain HTTP only on a direct, private cable between the computer and the robot; on shared networks use HTTPS or an encrypted tunnel (for example an SSH tunnel).
+
+### Firewall: allow only the robot
+
+Allow inbound connections to the port only from the robot's IP address. Windows (PowerShell as administrator):
+
+```powershell
+New-NetFirewallRule -DisplayName "Normatrons results (robot only)" -Direction Inbound -Protocol TCP -LocalPort 5000 -RemoteAddress 169.254.52.20 -Action Allow  # Allow only the robot's IP to reach port 5000.
+```
+
+If Windows previously asked "Allow Python to communicate on networks" and you agreed, it created a broad rule for `python.exe`. Remove or restrict that rule in "Windows Defender Firewall with Advanced Security" → "Inbound Rules". Do not expose the server to the public internet.
+
+### Robot client settings
+
+Copy `normatrons_cert.pem` (the certificate, never the key) to the robot and create `/var/lib/jupyter/notebooks/normatrons_client.json` through Jupyter:
+
+```json
+{
+  "url": "https://169.254.52.10:5000/results",
+  "token": "<token printed by --init>",
+  "ca_cert": "/var/lib/jupyter/notebooks/normatrons_cert.pem",
+  "timeout_seconds": 10
+}
+```
+
+For plain HTTP use an `http://` URL, omit `ca_cert`, and add `"allow_plain_http": true`. If the settings are missing or the server is unreachable, rejects the token, or returns an error, the protocol stops with `ResultsFetchError` before any labware is loaded or liquid is moved.
+
+### Tests
+
+```bash
+python -m pip install -r requirements-dev.txt  # Install test dependencies.
+python -m pytest -v  # Run the server, GUI-launch, client and abort tests (Linux: set QT_QPA_PLATFORM=offscreen).
+```
 
 ## OT-2 configuration
 

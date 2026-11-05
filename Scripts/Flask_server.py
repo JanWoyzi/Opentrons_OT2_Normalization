@@ -1,28 +1,18 @@
-from flask import Flask, jsonify, request
-from threading import Thread
-from time import sleep
-from os import getpid, kill
-from signal import SIGINT
+"""Standalone launcher for the restricted Normatrons results server.
 
-app = Flask(__name__)
+The old version of this file exposed /read_file/<any path> without a password.
+It now only starts the shared, authenticated server from results_server.py,
+so the standalone and GUI launch paths behave identically.
 
-@app.route('/read_file/<path:filename>')
-def read_file(filename):
-    try:
-        with open(filename, 'r') as file:
-            content = file.read()
-        return jsonify({"content": content})
-    except FileNotFoundError:
-        return jsonify({"error": "File not found"}), 404
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+Usage (from the Scripts folder):
+    python Flask_server.py                      # start the server
+    python Flask_server.py --init --results-file <json> --host <pc-ip>
+    python Flask_server.py --make-cert --host <pc-ip>
+"""
 
-def shutdown_server():
-    sleep(10)  # Gracefully shutdown after 10 seconds
-    print("Shutting down server gracefully...")
-    kill(getpid(), SIGINT)
+import sys  # Gives access to sys.exit() so the exit code reaches the operating system.
 
-if __name__ == '__main__':
-    # Start the shutdown timer in a separate thread
-    Thread(target=shutdown_server, daemon=True).start()
-    app.run(host='0.0.0.0', port=5000)
+from results_server import main  # Re-use the single shared server implementation.
+
+if __name__ == "__main__":  # Only run when this file is started directly.
+    sys.exit(main())  # Start the restricted server (or --init / --make-cert) and exit with its status code.

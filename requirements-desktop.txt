@@ -1,0 +1,10 @@
+# Desktop computer: GUI, Excel import and the restricted results server.
+qtpy
+PyQt5
+pandas
+openpyxl
+xlrd
+tabulate
+Flask>=2.2
+cheroot>=10
+cryptography  # optional: only needed for results_server.py --make-cert

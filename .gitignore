@@ -1,0 +1,9 @@
+# Secrets and machine-specific server settings must never be committed (issue #5).
+server_config.json
+normatrons_client.json
+*.pem
+*.key
+.normatrons/
+# Python caches
+__pycache__/
+.pytest_cache/

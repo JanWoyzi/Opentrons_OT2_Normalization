@@ -1,0 +1,4 @@
+# Test dependencies (desktop requirements plus pytest and requests).
+-r requirements-desktop.txt
+pytest
+requests
